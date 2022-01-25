@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-boot-cicd-demo-canary
+  labels:
+    app: spring-boot-cicd-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-boot-cicd-demo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: spring-boot-cicd-demo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8090"
+        prometheus.io/path: /prometheus
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+      - name: spring-boot-cicd-demo
+        image: labs-registry.cloudzcp.io/edu01/spring-boot-cicd-demo:prod
+        ports:
+        - containerPort: 8080
+          name: tomcat
+        - containerPort: 8090
+          name: actuator
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 10m
+            memory: 256Mi

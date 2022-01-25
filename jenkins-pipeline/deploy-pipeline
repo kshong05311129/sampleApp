@@ -1,0 +1,62 @@
+@Library('retort-lib') _
+def label = "jenkins-${UUID.randomUUID().toString()}"
+ 
+
+def DOCKER_IMAGE = 'demo/spring-boot-cicd-demo'
+def K8S_NAMESPACE = 'demo'
+
+
+VERSION = "${currentBuild.number}"
+
+
+println("------------------------------------------------------------------------------");
+println("VERSION : " + VERSION);
+println("------------------------------------------------------------------------------");
+
+
+timestamps { 
+    podTemplate(label:label,
+        serviceAccount: "demo-system-sa-demo-admin",
+        containers: [
+            containerTemplate(name: 'maven', image: 'maven:3.5.2-jdk-8-alpine', ttyEnabled: true, command: 'cat'),
+            containerTemplate(name: 'docker', image: 'docker:17-dind', ttyEnabled: true, command: 'dockerd-entrypoint.sh', privileged: true),
+            containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:v1.13.6', ttyEnabled: true, command: 'cat')
+        ],
+        volumes: [
+            persistentVolumeClaim(mountPath: '/root/.m2', claimName: 'demo-jenkins-mvn-repo')
+        ]) {
+
+        node(label) {
+            stage('SOURCE CHECKOUT') {
+                def repo = checkout scm
+            }
+
+            stage('BUILD MAVEN') {
+                container('maven') {
+                    mavenBuild goal: 'clean package', systemProperties:['maven.repo.local':"/root/.m2/demo01", 'maven.test.skip':'true']
+                }
+            }
+
+            stage('BUILD DOCKER IMAGE') {
+                container('docker') {
+                    //TODO: Docker image build block
+                    
+                    dockerCmd.build tag: "${HARBOR_REGISTRY}/${DOCKER_IMAGE}:${VERSION}"
+                    dockerCmd.push registry: HARBOR_REGISTRY, imageName: DOCKER_IMAGE, imageVersion: VERSION, credentialsId: "HARBOR_CREDENTIALS"
+                }
+            }
+
+            stage('DEPLOY') {
+                container('kubectl') {
+                    //TODO: kubectl command block
+                    // deploy service, ingress, deployment, test
+					
+                    kubeCmd.apply file: 'k8s/service.yaml', namespace: K8S_NAMESPACE
+                    kubeCmd.apply file: 'k8s/ingress.yaml', namespace: K8S_NAMESPACE
+                    yaml.update file: 'k8s/deployment.yaml', update: ['.spec.template.spec.containers[0].image': "${HARBOR_REGISTRY}/${DOCKER_IMAGE}:${VERSION}"]
+                    kubeCmd.apply file: 'k8s/deployment.yaml', namespace: K8S_NAMESPACE, wait: 1200
+                }
+            }
+        }
+    }
+}

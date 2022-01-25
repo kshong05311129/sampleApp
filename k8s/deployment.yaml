@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-boot-cicd-demo
+  labels:
+    app: spring-boot-cicd-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-boot-cicd-demo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: spring-boot-cicd-demo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8090"
+        prometheus.io/path: /prometheus
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      restartPolicy: Always
+      containers:
+      - name: spring-boot-cicd-demo
+        image: dev-registry-demo.cloudzcp.io/demo/spring-boot-cicd-demo
+        ports:
+        - containerPort: 8080
+          name: tomcat
+        - containerPort: 8090
+          name: actuator
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi

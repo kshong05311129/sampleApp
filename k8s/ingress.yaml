@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: spring-boot-cicd-demo
+  annotations:
+    kubernetes.io/ingress.class: public-nginx
+spec:
+  rules:
+  - host: demo.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: spring-boot-cicd-demo
+          servicePort: 80
